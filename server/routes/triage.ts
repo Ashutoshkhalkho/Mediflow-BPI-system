@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { runTriageAssessment } from '../services/gemini';
+import { predictBookingRisk } from '../services/predictor';
+import { TriageResult } from '../../src/types';
 
 const router = Router();
 
@@ -72,7 +74,29 @@ Known Medical History/Chronic Conditions/Risk Factors: ${medicalHistory || 'None
 `;
     }
 
-    const triageResult = await runTriageAssessment(patientInputText);
+    console.log('[Triage Route] Querying parallel Gemini assessment and Python child-process ML prediction...');
+    
+    // Run Gemini assessment and Python ML prediction in parallel
+    const [clinicalResult, mlResult] = await Promise.all([
+      runTriageAssessment(patientInputText),
+      predictBookingRisk({
+        previousNoShows,
+        commuteDistance,
+        bookingMethod,
+        appointmentType,
+        requestedSlot,
+      })
+    ]);
+
+    // Merge outputs, prioritizing the ML model's prediction for booking risk
+    const triageResult: TriageResult = {
+      ...clinicalResult,
+      bookingRisk: mlResult.bookingRisk,
+      bookingRiskScore: mlResult.bookingRiskScore,
+      bookingRiskJustification: mlResult.bookingRiskJustification,
+    };
+
+    console.log('[Triage Route] Successfully generated combined triage result.');
     res.json(triageResult);
   } catch (error: any) {
     console.error('Triage Error:', error);

@@ -11,13 +11,34 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Messages array is required.' });
     }
 
-    // Map incoming messages to Gemini parts format
-    const contents = messages.map((m: any) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    }));
+    let reply;
+    try {
+      console.log('[Chat Route] Querying Python FastAPI service...');
+      const pyResponse = await fetch('http://127.0.0.1:8000/api/python/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+      });
 
-    const reply = await runChatbotSession(contents);
+      if (pyResponse.ok) {
+        const pyResult = await pyResponse.json();
+        reply = pyResult.reply;
+        console.log('[Chat Route] Successfully obtained response from Python service.');
+      } else {
+        throw new Error(`Python service returned HTTP ${pyResponse.status}`);
+      }
+    } catch (pyError: any) {
+      console.warn('[Chat Route] Python service failure, falling back to Node.js:', pyError.message || pyError);
+      
+      // Map incoming messages to Gemini parts format for fallback
+      const contents = messages.map((m: any) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      }));
+
+      reply = await runChatbotSession(contents);
+    }
+
     res.json({ reply });
   } catch (error: any) {
     console.error('Chat Error:', error);

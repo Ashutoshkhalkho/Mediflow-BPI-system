@@ -46,7 +46,7 @@ export function PatientChatbot() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: [...chatMessages, userMsg].map((m) => ({
+          messages: [...chatMessages.slice(-6), userMsg].map((m) => ({
             role: m.role,
             content: m.content,
           })),
@@ -54,7 +54,8 @@ export function PatientChatbot() {
       });
 
       if (!response.ok) {
-        throw new Error('Could not connect to the Sunrise Medical Clinic AI assistant server.');
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Server responded with status ${response.status}`);
       }
 
       const data = await response.json();

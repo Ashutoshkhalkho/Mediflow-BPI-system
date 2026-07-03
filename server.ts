@@ -2,11 +2,15 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import app from './app';
+import { startPythonService } from './server/services/python_runner';
 
 const PORT = 3000;
 
 // Vite Setup (Development vs. Production)
 async function startServer() {
+  // Start Python FastAPI Service in background
+  await startPythonService();
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

@@ -161,9 +161,14 @@ export function TriageResults({ activeResult }: TriageResultsProps) {
           {/* Booking Cancellation & No-Show Risk Assessment */}
           <div className="border-t border-dashed border-zinc-200/60 pt-4 mt-2 space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700">
-                Booking / Operational Risk
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700">
+                  Booking / Operational Risk
+                </span>
+                <span className="bg-indigo-100/70 text-indigo-700 border border-indigo-200/50 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider">
+                  Python ML
+                </span>
+              </div>
               <span
                 className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
                   activeResult.bookingRisk === 'HIGH'
@@ -185,7 +190,10 @@ export function TriageResults({ activeResult }: TriageResultsProps) {
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold text-zinc-400 uppercase">No-Show Risk Score</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-[10px] font-bold text-zinc-400 uppercase">No-Show Risk Score</p>
+                  <span className="text-[8px] bg-zinc-50 text-zinc-500 border border-zinc-200/60 px-1 rounded font-bold">scikit-learn</span>
+                </div>
                 <p className="text-xs text-zinc-700 leading-tight font-semibold mt-0.5">
                   {activeResult.bookingRisk === 'HIGH'
                     ? 'High cancellation threat'
