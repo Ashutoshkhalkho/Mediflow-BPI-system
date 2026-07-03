@@ -1,0 +1,6 @@
+{
+  "name": "AI Medical Clinic Triage Assistant",
+  "description": "An automated triage assistant that processes inbound patient booking logs and call transcripts, evaluates patient risk levels, and generates precise clinic operational steps.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
