@@ -104,10 +104,37 @@ CRITICAL CLINICAL SAFETY RULES:
 - Be structured, clear, and reassuring. Keep responses relatively concise and highly legible. Use bullet points where appropriate to make information readable.
 `;
 
-export async function runTriageAssessment(patientInputText: string) {
+async function generateContentWithFallback(options: {
+  contents: any;
+  config: any;
+  defaultModel?: string;
+}) {
   const ai = getGeminiClient();
-  const response = await ai.models.generateContent({
-    model: 'gemini-3.5-flash',
+  const primaryModel = options.defaultModel || 'gemini-3.5-flash';
+  const fallbackModel = 'gemini-2.5-flash';
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: primaryModel,
+      contents: options.contents,
+      config: options.config,
+    });
+    return response;
+  } catch (error: any) {
+    console.warn(`Primary model ${primaryModel} failed. Error:`, error.message || error);
+    console.log(`Falling back to ${fallbackModel}...`);
+    const response = await ai.models.generateContent({
+      model: fallbackModel,
+      contents: options.contents,
+      config: options.config,
+    });
+    return response;
+  }
+}
+
+export async function runTriageAssessment(patientInputText: string) {
+  const response = await generateContentWithFallback({
+    defaultModel: 'gemini-3.5-flash',
     contents: patientInputText,
     config: {
       systemInstruction: TRIAGE_SYSTEM_INSTRUCTION,
@@ -195,9 +222,8 @@ export async function runTriageAssessment(patientInputText: string) {
 }
 
 export async function runChatbotSession(contents: any[]) {
-  const ai = getGeminiClient();
-  const response = await ai.models.generateContent({
-    model: 'gemini-3.5-flash',
+  const response = await generateContentWithFallback({
+    defaultModel: 'gemini-3.5-flash',
     contents: contents,
     config: {
       systemInstruction: CHAT_SYSTEM_INSTRUCTION,
