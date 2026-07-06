@@ -1,0 +1,4 @@
+patientName,patientAge,patientGender,contactPhone,chiefComplaint,onsetDuration,severityLevel,medicalHistory,previousNoShows,commuteDistance,appointmentType,bookingMethod,requestedSlot
+Eleanor Vance,34,Female,555-123-4567,"Chest tightness and minor coughing",3 days ago,4,"History of asthma",1-2 times,< 5 miles,Routine Care,online,standard open slot
+Liam Chen,42,Male,555-987-6543,"Severe lower back pain, difficult to walk",1 day ago,8,"None",None,15+ miles,Urgent Intake,phone call,friday afternoon
+Maria Santos,68,Female,555-456-7890,"Sudden slurred speech and weakness in left arm",30 mins ago,10,"Hypertension, diabetes",None,< 5 miles,Urgent Intake,walk-in,morning

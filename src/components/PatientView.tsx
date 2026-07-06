@@ -17,8 +17,8 @@ interface PatientViewProps {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => void;
   handleRunTriage: (e: React.FormEvent) => void;
-  activeTab: 'structured' | 'raw';
-  setActiveTab: (tab: 'structured' | 'raw') => void;
+  activeTab: 'structured' | 'raw' | 'csv';
+  setActiveTab: (tab: 'structured' | 'raw' | 'csv') => void;
   isLoading: boolean;
   error: string | null;
 }

@@ -10,13 +10,145 @@ import { OperationalWorkflows } from './components/OperationalWorkflows';
 import { TriageHistory } from './components/TriageHistory';
 import { RulesReference } from './components/RulesReference';
 
+// Flexible mapping for mapping CSV headers to TriageInput fields
+const headerMapping: Record<string, keyof TriageInput> = {
+  'patientname': 'patientName',
+  'name': 'patientName',
+  'patient name': 'patientName',
+  
+  'patientage': 'patientAge',
+  'age': 'patientAge',
+  'patient age': 'patientAge',
+  
+  'patientgender': 'patientGender',
+  'gender': 'patientGender',
+  'patient gender': 'patientGender',
+  
+  'contactphone': 'contactPhone',
+  'phone': 'contactPhone',
+  'contact phone': 'contactPhone',
+  'phone number': 'contactPhone',
+  
+  'chiefcomplaint': 'chiefComplaint',
+  'complaint': 'chiefComplaint',
+  'chief complaint': 'chiefComplaint',
+  'symptoms': 'chiefComplaint',
+  
+  'onsetduration': 'onsetDuration',
+  'onset': 'onsetDuration',
+  'duration': 'onsetDuration',
+  'onset & duration': 'onsetDuration',
+  'onset duration': 'onsetDuration',
+  
+  'severitylevel': 'severityLevel',
+  'severity': 'severityLevel',
+  'severity level': 'severityLevel',
+  
+  'medicalhistory': 'medicalHistory',
+  'history': 'medicalHistory',
+  'medical history': 'medicalHistory',
+  
+  'rawtranscript': 'rawTranscript',
+  'transcript': 'rawTranscript',
+  
+  'previousnoshows': 'previousNoShows',
+  'noshows': 'previousNoShows',
+  'no shows': 'previousNoShows',
+  'no-shows': 'previousNoShows',
+  
+  'commutedistance': 'commuteDistance',
+  'distance': 'commuteDistance',
+  'commute': 'commuteDistance',
+  
+  'appointmenttype': 'appointmentType',
+  'type': 'appointmentType',
+  'appointment type': 'appointmentType',
+  
+  'bookingmethod': 'bookingMethod',
+  'method': 'bookingMethod',
+  'booking method': 'bookingMethod',
+  
+  'requestedslot': 'requestedSlot',
+  'slot': 'requestedSlot',
+  'requested slot': 'requestedSlot'
+};
+
+// Client-side CSV parser that handles newlines and quoted commas correctly
+function parseCSV(text: string): Record<string, string>[] {
+  const lines: string[] = [];
+  let currentLine = "";
+  let inQuotes = false;
+  
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+    
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        currentLine += '"';
+        i++; // skip next quote
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === '\n' && !inQuotes) {
+      lines.push(currentLine);
+      currentLine = "";
+    } else if (char === '\r' && !inQuotes) {
+      // skip carriage returns
+    } else {
+      currentLine += char;
+    }
+  }
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  
+  if (lines.length === 0) return [];
+  
+  const parseLine = (line: string): string[] => {
+    const fields: string[] = [];
+    let field = "";
+    let inside = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        inside = !inside;
+      } else if (c === ',' && !inside) {
+        fields.push(field.trim());
+        field = "";
+      } else {
+        field += c;
+      }
+    }
+    fields.push(field.trim());
+    return fields;
+  };
+  
+  const headers = parseLine(lines[0]);
+  const records: Record<string, string>[] = [];
+  
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const row = parseLine(lines[i]);
+    const record: Record<string, string> = {};
+    headers.forEach((header, idx) => {
+      const cleanHeader = header.replace(/^"|"$/g, '').trim();
+      const val = row[idx] ? row[idx].replace(/^"|"$/g, '').trim() : '';
+      record[cleanHeader] = val;
+    });
+    records.push(record);
+  }
+  
+  return records;
+}
+
 export default function App() {
   // UI states
   const [userRole, setUserRole] = useState<'receptionist' | 'patient'>('receptionist');
   const [patientSubmittedResult, setPatientSubmittedResult] = useState<TriageResult | null>(null);
   const [patientSubmittedName, setPatientSubmittedName] = useState<string>('');
   const [showRulesModal, setShowRulesModal] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'structured' | 'raw'>('structured');
+  const [activeTab, setActiveTab] = useState<'structured' | 'raw' | 'csv'>('structured');
   const [module04Tab, setModule04Tab] = useState<'clinical' | 'booking'>('clinical');
   const [searchHistory, setSearchHistory] = useState<string>('');
   const [filterRisk, setFilterRisk] = useState<string>('all');
@@ -42,6 +174,11 @@ export default function App() {
   // Triage state
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // CSV Batch Upload states
+  const [batchRecords, setBatchRecords] = useState<TriageInput[]>([]);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; patientName: string } | null>(null);
+  const [batchError, setBatchError] = useState<string | null>(null);
 
   // Active viewing record / outcome
   const [activeResult, setActiveResult] = useState<TriageResult | null>(null);
@@ -180,6 +317,9 @@ export default function App() {
       bookingMethod: 'online',
       requestedSlot: 'standard open slot',
     });
+    setBatchRecords([]);
+    setBatchError(null);
+    setBatchProgress(null);
     setError(null);
   };
 
@@ -263,6 +403,153 @@ export default function App() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Handle CSV file selection and parsing
+  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setBatchError(null);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const rawRecords = parseCSV(text);
+        if (rawRecords.length === 0) {
+          throw new Error("No records found in CSV file.");
+        }
+
+        const mapped: TriageInput[] = rawRecords.map((rec) => {
+          const mappedRecord: TriageInput = {
+            patientName: '',
+            patientAge: '',
+            patientGender: 'Male',
+            contactPhone: '',
+            intakeType: 'structured',
+            chiefComplaint: '',
+            onsetDuration: '',
+            severityLevel: '5',
+            medicalHistory: '',
+            previousNoShows: 'None',
+            commuteDistance: '< 5 miles',
+            appointmentType: 'Routine Care',
+            bookingMethod: 'online',
+            requestedSlot: 'standard open slot',
+          };
+
+          Object.keys(rec).forEach((key) => {
+            const normalizedKey = key.toLowerCase().trim();
+            const targetProp = headerMapping[normalizedKey];
+            if (targetProp) {
+              (mappedRecord as any)[targetProp] = rec[key];
+            }
+          });
+
+          // Validation / fallback for required name field
+          if (!mappedRecord.patientName) {
+            mappedRecord.patientName = rec['patientName'] || rec['Name'] || rec['name'] || 'Unnamed Patient';
+          }
+
+          return mappedRecord;
+        });
+
+        setBatchRecords(mapped);
+      } catch (err: any) {
+        console.error("CSV parsing error:", err);
+        setBatchError(err.message || "Failed to parse CSV file.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Run sequential batch triage for all loaded patient records
+  const handleRunBatchTriage = async () => {
+    if (batchRecords.length === 0) return;
+
+    setIsLoading(true);
+    setBatchError(null);
+    
+    let currentLogs = [...triageLogs];
+    let firstResult: TriageResult | null = null;
+    let firstLogId: string | null = null;
+
+    for (let i = 0; i < batchRecords.length; i++) {
+      const record = batchRecords[i];
+      setBatchProgress({
+        current: i + 1,
+        total: batchRecords.length,
+        patientName: record.patientName,
+      });
+
+      try {
+        const response = await fetch('/api/triage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(record),
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `Server responded with status ${response.status}`);
+        }
+
+        const result: TriageResult = await response.json();
+        
+        if (i === 0) {
+          firstResult = result;
+        }
+
+        const bRisk = result.bookingRisk || 'LOW';
+        const initialWorkflowState: 'logged' | 'pending_action' | 'waiting' | 'done' | 'bottleneck' =
+          bRisk === 'HIGH'
+            ? 'bottleneck'
+            : bRisk === 'MEDIUM'
+              ? 'pending_action'
+              : 'logged';
+
+        const newLog: TriageLog = {
+          id: `log-${Date.now()}-${i}`,
+          createdAt: new Date().toISOString(),
+          input: { ...record },
+          result: result,
+          status: 'new',
+          completedSteps: [],
+          bookingWorkflowState: initialWorkflowState,
+          completedWorkflowSubsteps: [],
+          revenueSaved: 0,
+        };
+
+        if (i === 0) {
+          firstLogId = newLog.id;
+        }
+
+        currentLogs = [newLog, ...currentLogs];
+      } catch (err: any) {
+        console.error(`Error triaging batch patient ${record.patientName}:`, err);
+        setBatchError(`Failed to process patient "${record.patientName}": ${err.message}`);
+        break;
+      }
+    }
+
+    saveLogsToStorage(currentLogs);
+    setBatchProgress(null);
+    setIsLoading(false);
+    
+    if (firstResult && firstLogId) {
+      setActiveResult(firstResult);
+      setActiveResultLogId(firstLogId);
+      
+      const stepState: Record<string, boolean> = {};
+      firstResult.operationalSteps.forEach((step) => {
+        stepState[step] = false;
+      });
+      setCompletedSteps(stepState);
+      
+      setFormInput(batchRecords[0]);
+    }
+    
+    setBatchRecords([]);
   };
 
   // Toggle state of checkbox step
@@ -716,6 +1003,11 @@ export default function App() {
                   isLoading={isLoading}
                   error={error}
                   isReceptionistConsole={true}
+                  batchRecords={batchRecords}
+                  batchProgress={batchProgress}
+                  batchError={batchError}
+                  handleCSVUpload={handleCSVUpload}
+                  handleRunBatchTriage={handleRunBatchTriage}
                 />
               </div>
 

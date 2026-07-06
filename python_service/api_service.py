@@ -394,4 +394,5 @@ def run_chat(chat_input: ChatInput):
 
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run("api_service:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.getenv("PORT", 8009))
+    uvicorn.run("api_service:app", host="0.0.0.0", port=port, reload=True)

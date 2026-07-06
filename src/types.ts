@@ -4,7 +4,7 @@
 
 export type RiskLevel = 'EMERGENCY' | 'URGENT' | 'SEMI-URGENT' | 'NON-URGENT';
 
-export type IntakeType = 'raw' | 'structured';
+export type IntakeType = 'raw' | 'structured' | 'csv';
 
 export interface TriageInput {
   patientName: string;

@@ -50,7 +50,8 @@ export async function startPythonService(): Promise<void> {
     }
 
     // 4. Spawn FastAPI Server
-    console.log('[Python Runner] Starting FastAPI server on port 8000...');
+    const PYTHON_PORT = process.env.PYTHON_PORT || '8009';
+    console.log(`[Python Runner] Starting FastAPI server on port ${PYTHON_PORT}...`);
     pythonProcess = spawn(`"${pythonExe}"`, ['api_service.py'], {
       cwd: PYTHON_SERVICE_DIR,
       shell: true,
@@ -58,6 +59,7 @@ export async function startPythonService(): Promise<void> {
       env: {
         ...process.env,
         PYTHONUNBUFFERED: '1',
+        PORT: PYTHON_PORT,
       },
     });
 
@@ -80,7 +82,7 @@ export async function startPythonService(): Promise<void> {
     const maxAttempts = 15;
     while (attempts < maxAttempts) {
       try {
-        const response = await fetch('http://127.0.0.1:8000/api/python/health');
+        const response = await fetch(`http://127.0.0.1:${PYTHON_PORT}/api/python/health`);
         if (response.ok) {
           const health = await response.json();
           console.log('[Python Runner] FastAPI health check passed:', health);

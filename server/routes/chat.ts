@@ -14,7 +14,8 @@ router.post('/', async (req, res) => {
     let reply;
     try {
       console.log('[Chat Route] Querying Python FastAPI service...');
-      const pyResponse = await fetch('http://127.0.0.1:8000/api/python/chat', {
+      const PYTHON_PORT = process.env.PYTHON_PORT || '8009';
+      const pyResponse = await fetch(`http://127.0.0.1:${PYTHON_PORT}/api/python/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages }),

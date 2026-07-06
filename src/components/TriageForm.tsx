@@ -9,11 +9,18 @@ interface TriageFormProps {
   ) => void;
   handleRunTriage: (e: React.FormEvent) => void;
   handleResetForm: () => void;
-  activeTab: 'structured' | 'raw';
-  setActiveTab: (tab: 'structured' | 'raw') => void;
+  activeTab: 'structured' | 'raw' | 'csv';
+  setActiveTab: (tab: 'structured' | 'raw' | 'csv') => void;
   isLoading: boolean;
   error: string | null;
   isReceptionistConsole: boolean;
+  
+  // CSV Batch Upload props (optional)
+  batchRecords?: TriageInput[];
+  batchProgress?: { current: number; total: number; patientName: string } | null;
+  batchError?: string | null;
+  handleCSVUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleRunBatchTriage?: () => void;
 }
 
 export function TriageForm({
@@ -26,6 +33,11 @@ export function TriageForm({
   isLoading,
   error,
   isReceptionistConsole,
+  batchRecords = [],
+  batchProgress = null,
+  batchError = null,
+  handleCSVUpload,
+  handleRunBatchTriage,
 }: TriageFormProps) {
   return (
     <section
@@ -75,12 +87,38 @@ export function TriageForm({
           >
             {isReceptionistConsole ? 'Call Transcript / Raw Log' : 'Describe Symptoms freely'}
           </button>
+          {isReceptionistConsole && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('csv')}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
+                activeTab === 'csv'
+                  ? 'bg-white text-indigo-600 shadow-xs'
+                  : 'text-zinc-600 hover:text-zinc-900'
+              }`}
+              id="tab-csv-btn"
+            >
+              Batch CSV Ingestion
+            </button>
+          )}
         </div>
       </div>
 
-      <form onSubmit={handleRunTriage} className="space-y-4 flex-1 flex flex-col">
-        {/* Demographics row */}
-        <div className="grid grid-cols-3 gap-3">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (activeTab === 'csv') {
+            handleRunBatchTriage?.();
+          } else {
+            handleRunTriage(e);
+          }
+        }}
+        className="space-y-4 flex-1 flex flex-col"
+      >
+        {activeTab !== 'csv' && (
+          <>
+            {/* Demographics row */}
+            <div className="grid grid-cols-3 gap-3">
           <div className="col-span-3 sm:col-span-1">
             <label className="block text-[10px] font-bold text-zinc-400 uppercase mb-1">
               {isReceptionistConsole ? 'Patient Name' : 'Your Full Name'}
@@ -160,6 +198,8 @@ export function TriageForm({
             />
           </div>
         </div>
+      </>
+    )}
 
         {/* Dynamic inputs based on Intake Mode selection */}
         {activeTab === 'structured' ? (
@@ -349,7 +389,7 @@ export function TriageForm({
               </div>
             </div>
           </div>
-        ) : (
+        ) : activeTab === 'raw' ? (
           <div className="flex-1 flex flex-col space-y-2" id="intake-raw-fields">
             <div className="flex justify-between items-center">
               <label className="block text-[10px] font-bold text-zinc-400 uppercase">
@@ -378,6 +418,122 @@ export function TriageForm({
               id="input-raw-transcript"
             />
           </div>
+        ) : null}
+
+        {/* CSV Batch Ingestion UI */}
+        {activeTab === 'csv' && (
+          <div className="flex-1 flex flex-col space-y-4" id="intake-csv-fields">
+            <div className="border-2 border-dashed border-zinc-300 rounded-xl p-6 text-center hover:bg-zinc-50 transition-colors cursor-pointer relative">
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleCSVUpload}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                id="csv-file-input"
+              />
+              <div className="space-y-2">
+                <span className="text-2xl block">📄</span>
+                <p className="text-xs font-bold text-zinc-700">
+                  Drag & drop your patient CSV file, or <span className="text-indigo-600 underline">browse</span>
+                </p>
+                <p className="text-[10px] text-zinc-400">Supports standard .csv format up to 5MB</p>
+              </div>
+            </div>
+
+            {/* Format Instructions & Helper */}
+            <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-2.5">
+              <div className="flex justify-between items-center">
+                <h4 className="text-[10px] font-black uppercase text-indigo-700 tracking-wider">
+                  Required CSV Columns & Format
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sampleCSV = `patientName,patientAge,patientGender,contactPhone,chiefComplaint,onsetDuration,severityLevel,medicalHistory,previousNoShows,commuteDistance,appointmentType,bookingMethod,requestedSlot\nEleanor Vance,34,Female,555-123-4567,"Chest tightness and minor coughing",3 days ago,4,"History of asthma",1-2 times,< 5 miles,Routine Care,online,standard open slot\nLiam Chen,42,Male,555-987-6543,"Severe lower back pain, difficult to walk",1 day ago,8,"None",None,15+ miles,Urgent Intake,phone call,friday afternoon`;
+                    navigator.clipboard.writeText(sampleCSV);
+                    alert("Sample CSV template copied to clipboard! You can paste it into a file (e.g., patients.csv).");
+                  }}
+                  className="text-[9px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100/50 border border-indigo-200 px-2 py-1 rounded"
+                >
+                  Copy Template
+                </button>
+              </div>
+              <p className="text-[10px] text-indigo-950 leading-relaxed">
+                Ensure your CSV has a column header named <strong className="font-semibold">patientName</strong> or <strong className="font-semibold">Name</strong>. 
+                Other columns like <strong className="font-semibold">Age, Gender, Phone, symptoms (Chief Complaint)</strong> will be mapped automatically if present.
+              </p>
+            </div>
+
+            {/* Parsed List View */}
+            {batchRecords && batchRecords.length > 0 && (
+              <div className="flex-1 flex flex-col min-h-[150px] border border-zinc-200 rounded-xl overflow-hidden bg-zinc-50 shadow-2xs">
+                <div className="bg-zinc-100 border-b border-zinc-200 px-3 py-2 flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase">
+                    Parsed Patient Records ({batchRecords.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleResetForm}
+                    className="text-[10px] text-red-600 hover:underline font-semibold"
+                  >
+                    Clear List
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto divide-y divide-zinc-200 max-h-[180px]">
+                  {batchRecords.map((rec, idx) => (
+                    <div key={idx} className="p-3 text-xs flex justify-between items-start gap-4 hover:bg-zinc-100/50 transition-colors">
+                      <div>
+                        <div className="font-bold text-zinc-800 flex items-center gap-1.5">
+                          <span>{rec.patientName}</span>
+                          {rec.patientAge && (
+                            <span className="text-[10px] text-zinc-400 font-normal">({rec.patientAge} y/o {rec.patientGender})</span>
+                          )}
+                        </div>
+                        {rec.chiefComplaint && (
+                          <p className="text-[10px] text-zinc-500 truncate max-w-[280px] mt-0.5">
+                            {rec.chiefComplaint}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-[9px] font-mono text-zinc-400 bg-zinc-200/50 px-1.5 py-0.5 rounded uppercase">
+                        {rec.appointmentType || 'Routine'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Batch Progress Indicator */}
+            {batchProgress && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2.5 animate-fadeIn">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-emerald-800">
+                    Processing Batch Triage:
+                  </span>
+                  <span className="font-mono font-bold text-emerald-700">
+                    {batchProgress.current} / {batchProgress.total}
+                  </span>
+                </div>
+                <div className="w-full bg-emerald-100 h-2.5 rounded-full overflow-hidden border border-emerald-200">
+                  <div 
+                    className="bg-emerald-600 h-full rounded-full transition-all duration-300"
+                    style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+                  ></div>
+                </div>
+                <div className="text-[10px] text-emerald-600 font-medium">
+                  Currently analyzing: <span className="font-bold text-emerald-800">{batchProgress.patientName}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Batch Error display */}
+            {batchError && (
+              <div className="p-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl text-xs font-semibold">
+                {batchError}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Action Buttons */}
@@ -393,19 +549,27 @@ export function TriageForm({
           </button>
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || (activeTab === 'csv' && batchRecords.length === 0)}
             className="col-span-2 bg-indigo-600 text-white font-bold py-2.5 rounded-xl text-xs hover:opacity-95 transition-opacity flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
             id={isReceptionistConsole ? 'submit-triage-btn' : 'patient-submit-btn'}
           >
             {isLoading ? (
               <>
                 <RefreshCw className="h-4 w-4 animate-spin" />
-                {isReceptionistConsole ? 'Evaluating Patient Symptoms...' : 'Securely Triaging Your Symptoms...'}
+                {activeTab === 'csv'
+                  ? 'Ingesting & Analyzing Batch...'
+                  : isReceptionistConsole
+                    ? 'Evaluating Patient Symptoms...'
+                    : 'Securely Triaging Your Symptoms...'}
               </>
             ) : (
               <>
                 <PlayCircle className="h-4 w-4 text-white" />
-                {isReceptionistConsole ? 'RUN CLINICAL TRIAGE' : 'SUBMIT INTAKE AND BOOK APPOINTMENT'}
+                {activeTab === 'csv'
+                  ? `RUN BATCH ASSESSMENT (${batchRecords.length})`
+                  : isReceptionistConsole
+                    ? 'RUN CLINICAL TRIAGE'
+                    : 'SUBMIT INTAKE AND BOOK APPOINTMENT'}
               </>
             )}
           </button>
