@@ -872,26 +872,10 @@ export default function App() {
       {/* MAIN BENTO GRID CONTAINER */}
       <main className="flex-1 p-6 space-y-6 max-w-[1600px] mx-auto w-full">
         {userRole === 'patient' ? (
-          <PatientView
-            patientSubmittedResult={patientSubmittedResult}
-            patientSubmittedName={patientSubmittedName}
-            setPatientSubmittedResult={setPatientSubmittedResult}
-            setPatientSubmittedName={setPatientSubmittedName}
-            handleResetForm={handleResetForm}
-            setUserRole={setUserRole}
-            formInput={formInput}
-            handleInputChange={handleInputChange}
-            handleRunTriage={handleRunTriage}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            isLoading={isLoading}
-            error={error}
-          />
-        ) : (
-          <>
+          <div className="space-y-6">
             {/* Quick Samples Banner */}
             <div
-              className="bg-white p-4 rounded-xl border border-zinc-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xs"
+              className="bg-white p-4 rounded-xl border border-zinc-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xs animate-fadeIn"
               id="quick-samples-bar"
             >
               <div>
@@ -927,6 +911,25 @@ export default function App() {
                 })}
               </div>
             </div>
+
+            <PatientView
+              patientSubmittedResult={patientSubmittedResult}
+              patientSubmittedName={patientSubmittedName}
+              setPatientSubmittedResult={setPatientSubmittedResult}
+              setPatientSubmittedName={setPatientSubmittedName}
+              handleResetForm={handleResetForm}
+              setUserRole={setUserRole}
+              formInput={formInput}
+              handleInputChange={handleInputChange}
+              handleRunTriage={handleRunTriage}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              isLoading={isLoading}
+              error={error}
+            />
+          </div>
+        ) : (
+          <>
 
             {/* Dynamic Booking Metrics & Revenue Preserved Dashboard */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4" id="booking-metrics-dashboard">
