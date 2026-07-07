@@ -12,3 +12,11 @@ export function getGeminiApiKey(): string {
   }
   return apiKey;
 }
+
+export function getPythonApiUrl(): string {
+  return process.env.PYTHON_API_URL || 'http://127.0.0.1:8009';
+}
+
+export function isProduction(): boolean {
+  return process.env.NODE_ENV === 'production';
+}

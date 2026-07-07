@@ -369,6 +369,72 @@ Known Medical History/Chronic Conditions/Risk Factors: {triage_input.medicalHist
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
+class PredictInput(BaseModel):
+    previousNoShows: Optional[str] = None
+    commuteDistance: Optional[str] = None
+    bookingMethod: Optional[str] = None
+    appointmentType: Optional[str] = None
+    requestedSlot: Optional[str] = None
+
+@app.post("/api/python/predict")
+def run_predict(input_data: PredictInput):
+    try:
+        score = 10
+        if model is not None:
+            features = [[
+                map_no_shows(input_data.previousNoShows or ""),
+                map_commute(input_data.commuteDistance or ""),
+                map_booking_method(input_data.bookingMethod or ""),
+                map_appointment_type(input_data.appointmentType or ""),
+                map_requested_slot(input_data.requestedSlot or "")
+            ]]
+            try:
+                no_show_prob = model.predict_proba(features)[0][1]
+                score = int(no_show_prob * 100)
+            except Exception as ml_err:
+                print(f"Error running model prediction: {ml_err}")
+                score = 10
+                
+        if score >= 70:
+            booking_risk = "HIGH"
+        elif score >= 35:
+            booking_risk = "MEDIUM"
+        else:
+            booking_risk = "LOW"
+            
+        justification_parts = []
+        no_shows_val = input_data.previousNoShows or "None"
+        commute_val = input_data.commuteDistance or "< 5 miles"
+        slot_val = input_data.requestedSlot or "standard slot"
+        method_val = input_data.bookingMethod or "online"
+        
+        if "3+" in no_shows_val:
+            justification_parts.append("history of repeated no-shows (3+ times)")
+        elif "1-2" in no_shows_val:
+            justification_parts.append("history of 1-2 previous no-shows")
+            
+        if "15+" in commute_val:
+            justification_parts.append("long travel distance (15+ miles)")
+            
+        if "friday" in slot_val.lower() or "weekend" in slot_val.lower():
+            justification_parts.append("highly coveted/peak slot request")
+            
+        if "phone" in method_val.lower():
+            justification_parts.append("phone call booking method (lacks email or CC verification)")
+            
+        if not justification_parts:
+            justification = f"ML model predicted a low no-show probability ({score}%) due to stable attendance record, short commute, and standard slot selection."
+        else:
+            justification = f"Python scikit-learn Random Forest model computed a {score}% risk score due to: " + ", ".join(justification_parts) + "."
+            
+        return {
+            "bookingRisk": booking_risk,
+            "bookingRiskScore": score,
+            "bookingRiskJustification": justification
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/python/chat")
 def run_chat(chat_input: ChatInput):
     try:

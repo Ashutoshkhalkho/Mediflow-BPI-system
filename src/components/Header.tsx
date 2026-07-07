@@ -35,7 +35,7 @@ export function Header({ userRole, setUserRole, setShowRulesModal }: HeaderProps
           VITALIS AI <span className="text-zinc-400 font-light">// Clinic Triage Assistant</span>
         </h1>
         <p className="text-xs text-zinc-500 mt-1">
-          St. Jude Medical Center • Smart Patient Ingestion & Operational Routing
+          Sunrise Medical Clinic • Smart Patient Ingestion & Operational Routing
         </p>
       </div>
 

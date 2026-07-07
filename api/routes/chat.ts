@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { runChatbotSession } from '../services/gemini';
+import { queryPythonChat } from '../services/python_client';
 
 const router = Router();
 
@@ -11,27 +12,23 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Messages array is required.' });
     }
 
-    let reply;
+    let reply: string | undefined;
+
+    // 1. Attempt to call separate Python service
     try {
       console.log('[Chat Route] Querying Python FastAPI service...');
-      const PYTHON_PORT = process.env.PYTHON_PORT || '8009';
-      const pyResponse = await fetch(`http://127.0.0.1:${PYTHON_PORT}/api/python/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages }),
-      });
-
-      if (pyResponse.ok) {
-        const pyResult = await pyResponse.json();
+      const pyResult = await queryPythonChat({ messages });
+      if (pyResult && pyResult.reply) {
         reply = pyResult.reply;
         console.log('[Chat Route] Successfully obtained response from Python service.');
-      } else {
-        throw new Error(`Python service returned HTTP ${pyResponse.status}`);
       }
     } catch (pyError: any) {
       console.warn('[Chat Route] Python service failure, falling back to Node.js:', pyError.message || pyError);
-      
-      // Map incoming messages to Gemini parts format for fallback
+    }
+
+    // 2. Fall back to Node.js/TS Gemini SDK direct integration if Python is down
+    if (!reply) {
+      console.log('[Chat Route] Running fallback chat session directly in Node.js...');
       const contents = messages.map((m: any) => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.content }],

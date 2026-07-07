@@ -74,7 +74,7 @@ Known Medical History/Chronic Conditions/Risk Factors: ${medicalHistory || 'None
 `;
     }
 
-    console.log('[Triage Route] Querying parallel Gemini assessment and Python child-process ML prediction...');
+    console.log('[Triage Route] Querying parallel Gemini assessment and Python ML prediction...');
     
     // Run Gemini assessment and Python ML prediction in parallel
     const [clinicalResult, mlResult] = await Promise.all([

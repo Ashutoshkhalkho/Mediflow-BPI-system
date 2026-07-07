@@ -471,31 +471,83 @@ export default function App() {
     setBatchError(null);
     
     let currentLogs = [...triageLogs];
-    let firstResult: TriageResult | null = null;
-    let firstLogId: string | null = null;
+    const total = batchRecords.length;
+    let completedCount = 0;
+    
+    const results: { result: TriageResult | null; record: TriageInput; error?: string }[] = new Array(total);
+    const CONCURRENCY = 3;
+    let nextIndex = 0;
 
-    for (let i = 0; i < batchRecords.length; i++) {
-      const record = batchRecords[i];
-      setBatchProgress({
-        current: i + 1,
-        total: batchRecords.length,
-        patientName: record.patientName,
-      });
+    const worker = async () => {
+      while (nextIndex < total) {
+        const currentIndex = nextIndex++;
+        const record = batchRecords[currentIndex];
 
-      try {
-        const response = await fetch('/api/triage', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(record),
+        // Update progress for started patient
+        setBatchProgress({
+          current: completedCount + 1,
+          total: total,
+          patientName: record.patientName,
         });
 
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error || `Server responded with status ${response.status}`);
-        }
+        try {
+          const response = await fetch('/api/triage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(record),
+          });
 
-        const result: TriageResult = await response.json();
-        
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `Server responded with status ${response.status}`);
+          }
+
+          const result: TriageResult = await response.json();
+          results[currentIndex] = { result, record };
+        } catch (err: any) {
+          console.error(`Error triaging batch patient ${record.patientName}:`, err);
+          results[currentIndex] = { result: null, record, error: err.message || String(err) };
+        } finally {
+          completedCount++;
+          if (completedCount < total) {
+            const activeIndex = results.findIndex((r, idx) => !r && idx < total);
+            const activePatient = activeIndex !== -1 ? batchRecords[activeIndex] : null;
+            setBatchProgress({
+              current: completedCount,
+              total: total,
+              patientName: activePatient ? activePatient.patientName : '',
+            });
+          }
+        }
+      }
+    };
+
+    const workers = [];
+    for (let w = 0; w < Math.min(CONCURRENCY, total); w++) {
+      workers.push(worker());
+    }
+    await Promise.all(workers);
+
+    let firstResult: TriageResult | null = null;
+    let firstLogId: string | null = null;
+    let hasError = false;
+    let errorMsg = '';
+
+    for (let i = 0; i < total; i++) {
+      if (results[i].error) {
+        hasError = true;
+        errorMsg = `Failed to process patient "${results[i].record.patientName}": ${results[i].error}`;
+        break;
+      }
+    }
+
+    if (hasError) {
+      setBatchError(errorMsg);
+    } else {
+      for (let i = 0; i < total; i++) {
+        const { result, record } = results[i];
+        if (!result) continue;
+
         if (i === 0) {
           firstResult = result;
         }
@@ -525,18 +577,15 @@ export default function App() {
         }
 
         currentLogs = [newLog, ...currentLogs];
-      } catch (err: any) {
-        console.error(`Error triaging batch patient ${record.patientName}:`, err);
-        setBatchError(`Failed to process patient "${record.patientName}": ${err.message}`);
-        break;
       }
+
+      saveLogsToStorage(currentLogs);
     }
 
-    saveLogsToStorage(currentLogs);
     setBatchProgress(null);
     setIsLoading(false);
     
-    if (firstResult && firstLogId) {
+    if (!hasError && firstResult && firstLogId) {
       setActiveResult(firstResult);
       setActiveResultLogId(firstLogId);
       
@@ -547,9 +596,8 @@ export default function App() {
       setCompletedSteps(stepState);
       
       setFormInput(batchRecords[0]);
+      setBatchRecords([]);
     }
-    
-    setBatchRecords([]);
   };
 
   // Toggle state of checkbox step
